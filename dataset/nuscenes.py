@@ -27,12 +27,12 @@ class NuScenesDataset(Dataset):
     def __getitem__(self, idx):
         # instance_token  is the token of the agent we want to track
         # sample_token is the token of the sample (video scenario) we want to track the agent in
-        instance_token, sample_token = mini_train[idx].split("_")
+        instance_token, sample_token = self.instances[idx].split("_")
         sample = self.helper.get_sample_annotation(instance_token, sample_token)
         kwargs = {
             "instance_token": instance_token,
             "sample_token": sample_token,
-            "seconds_in_future": self.seconds_in_future,
+            "seconds": self.seconds_in_future,
         }
 
         agent_future_xy_local = self.helper.get_future_for_agent(
@@ -50,11 +50,16 @@ class NuScenesDataset(Dataset):
             in_agent_frame=True,
         )
 
-        global_annotations = self.helper.get_annotations_for_sample(instance_token, sample_token)
+        agent_past_xy_global = self.helper.get_past_for_agent(
+            **kwargs,
+            in_agent_frame=False,
+        )
+
+        global_sample = self.helper.get_annotations_for_sample(sample_token)
 
         return {
-            "global_annotations": global_annotations,
-            "annotation": annotation,
+            "global_sample": global_sample,
+            "sample": sample,
             "instance_token": instance_token,
             "sample_token": sample_token,
             "future": {
