@@ -13,6 +13,7 @@ _size_to_split = {
     "full": "trainval"
 }
 
+
 class NuScenesDataset(Dataset):
     def __init__(self, dataroot, size="mini", seconds_in_future=3):
         self.nusc = NuScenes(version=_size_to_version[size], dataroot=dataroot)
@@ -71,4 +72,3 @@ class NuScenesDataset(Dataset):
                 "agent_xy_global": agent_past_xy_global,
             },
         }
-

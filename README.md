@@ -29,12 +29,20 @@ python -m pip install requirements.txt
 
 #### Setting up NuScenes mini dataset
 
+##### Download the Mini Dataset
+
+```
+mkdir -p data/sets/nuscenes  # Make the directory to store the nuScenes dataset in.
+wget https://www.nuscenes.org/data/v1.0-mini.tgz  # Download the nuScenes mini split.
+tar -xf v1.0-mini.tgz -C data/sets/nuscenes  # Uncompress the nuScenes mini split.
+```
+(for windows the easiest way is to just run these commands in wsl)
+
+##### Adding the US Map expansion pack
 1. Open the [downloads page](https://www.nuscenes.org/download) and go to `Full Dataset (v1.0) > Mini` and click US
 2. download US Map expansion pack (v1.3)
 3. decompress both packages and drop `basemap/`, `expansion/` and `prediction/` (all from the maps expansion pack) into `v1.0-mini/maps/`
 
 #### Jupyter Notebook
-
-Change `dataroot` to where `v1.0-mini/` was downloaded to
 
 
