@@ -31,7 +31,7 @@ python -m pip install requirements.txt
 
 1. Open the [downloads page](https://www.nuscenes.org/download) and go to `Full Dataset (v1.0) > Mini` and click US
 2. download US Map expansion pack (v1.3)
-3. decompress both packages and drop `basemap/`, `expansion/` and `prediction/` in `v1.0-mini/maps/`
+3. decompress both packages and drop `basemap/`, `expansion/` and `prediction/` (all from the maps expansion pack) into `v1.0-mini/maps/`
 
 #### Jupyter Notebook
 
