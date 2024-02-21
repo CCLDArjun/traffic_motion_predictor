@@ -2,5 +2,5 @@ import dataset
 from pprint import pprint
 
 d = dataset.NuScenesDataset("data/sets/nuscenes")
-pprint(d[0])
+pprint(d[140])
 

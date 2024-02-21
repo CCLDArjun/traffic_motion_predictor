@@ -2,6 +2,8 @@ from torch.utils.data import Dataset
 from nuscenes import NuScenes
 from nuscenes.eval.prediction.splits import get_prediction_challenge_split
 from nuscenes.prediction import PredictHelper
+from nuscenes.prediction.input_representation.static_layers import StaticLayerRasterizer
+
 
 _size_to_version = {
     "mini": "v1.0-mini",
@@ -21,6 +23,7 @@ class NuScenesDataset(Dataset):
         self.dataroot = dataroot
         self.helper = PredictHelper(self.nusc)
         self.seconds_in_future = seconds_in_future
+        self.static_later_rast = StaticLayerRasterizer(self.helper)
 
     def __len__(self):
         return len(self.instances)
@@ -57,6 +60,7 @@ class NuScenesDataset(Dataset):
         )
 
         global_sample = self.helper.get_annotations_for_sample(sample_token)
+        thing = self.static_later_rast.make_representation(instance_token,sample_token)
 
         return {
             "global_sample": global_sample,
