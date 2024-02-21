@@ -3,6 +3,9 @@ from nuscenes import NuScenes
 from nuscenes.eval.prediction.splits import get_prediction_challenge_split
 from nuscenes.prediction import PredictHelper
 from nuscenes.prediction.input_representation.static_layers import StaticLayerRasterizer
+from nuscenes.prediction.input_representation.agents import AgentBoxesWithFadedHistory
+from nuscenes.prediction.input_representation.interface import InputRepresentation
+from nuscenes.prediction.input_representation.combinators import Rasterizer
 import matplotlib.pyplot as plt
 
 _size_to_version = {
@@ -24,6 +27,8 @@ class NuScenesDataset(Dataset):
         self.helper = PredictHelper(self.nusc)
         self.seconds_in_future = seconds_in_future
         self.static_later_rast = StaticLayerRasterizer(self.helper)
+        self.agent_rast = AgentBoxesWithFadedHistory(self.helper, seconds_of_history=0)
+        self.input_creator = InputRepresentation(self.static_later_rast, self.agent_rast, Rasterizer())
 
     def __len__(self):
         return len(self.instances)
@@ -63,6 +68,9 @@ class NuScenesDataset(Dataset):
         sample_thing = self.nusc.get("sample", sample_token)
         tuple_containing_img = self.nusc.get_sample_data(sample_thing["data"]["CAM_FRONT"])
         top_down_repr = self.static_later_rast.make_representation(instance_token, sample_token)
+        agent_rast = self.agent_rast.make_representation(instance_token, sample_token)
+
+        input_image = self.input_creator.make_input_representation(instance_token, sample_token) # this is combined agent and static raster
 
         return {
             "global_sample": global_sample,
@@ -77,4 +85,8 @@ class NuScenesDataset(Dataset):
                 "agent_xy_local": agent_past_xy_local,
                 "agent_xy_global": agent_past_xy_global,
             },
+            "top_down_repr": top_down_repr,
+            "input_image": input_image,
+            "agent_rast": agent_rast,
         }
+
