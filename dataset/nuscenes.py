@@ -3,7 +3,7 @@ from nuscenes import NuScenes
 from nuscenes.eval.prediction.splits import get_prediction_challenge_split
 from nuscenes.prediction import PredictHelper
 from nuscenes.prediction.input_representation.static_layers import StaticLayerRasterizer
-
+import matplotlib.pyplot as plt
 
 _size_to_version = {
     "mini": "v1.0-mini",
@@ -60,7 +60,9 @@ class NuScenesDataset(Dataset):
         )
 
         global_sample = self.helper.get_annotations_for_sample(sample_token)
-        thing = self.static_later_rast.make_representation(instance_token,sample_token)
+        sample_thing = self.nusc.get("sample", sample_token)
+        tuple_containing_img = self.nusc.get_sample_data(sample_thing["data"]["CAM_FRONT"])
+        top_down_repr = self.static_later_rast.make_representation(instance_token, sample_token)
 
         return {
             "global_sample": global_sample,
