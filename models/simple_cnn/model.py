@@ -13,22 +13,26 @@ def construct_base_cnn():
     return base_cnn, base_cnn_raster_size
 
 class SimpleCNN(torch.nn.Module):
-    def __init__(self, num_modes, predictions_per_mode, state_vector_size=4, state_vector_replication=10):
+    def __init__(self, num_modes, predictions_per_mode, state_vector_size=4, state_vector_replication=10, fc1_size=4096):
         super(SimpleCNN, self).__init__()
         self.base_cnn, base_cnn_raster_size = construct_base_cnn()
-        self.fc1 = torch.nn.Linear(base_cnn_raster_size + (state_vector_size * state_vector_replication), 4096)
-        self.fc2 = torch.nn.Linear(4096, num_modes * (2 * predictions_per_mode + 1)) # 2 for x, y and 1 for confidence
+        self.fc1 = torch.nn.Linear(base_cnn_raster_size + (state_vector_size * state_vector_replication), fc1_size)
+        self.fc2 = torch.nn.Linear(fc1_size, num_modes * (2 * predictions_per_mode + 1)) # 2 for x, y and 1 for confidence
 
         self.num_modes = num_modes
         self.state_vector_replication = state_vector_replication
         self.predictions_per_mode = predictions_per_mode
 
-    def forward(self, raster_image, state_vector):
+    def forward(self, raster_image, state_vector, latent_output=""):
         raster_features = self.base_cnn(raster_image)
 
         state_vector = state_vector.repeat(1, self.state_vector_replication)
         x = torch.cat([raster_features, state_vector], dim=1)
         x = F.relu(self.fc1(x))
+
+        if latent_output == "fc1":
+            return fc1
+
         x = self.fc2(x)
 
         # each mode has a probability so the length is num_modes
