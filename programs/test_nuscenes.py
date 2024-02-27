@@ -1,8 +1,11 @@
+import sys
+sys.path.append("..")
+
 import dataset
 from pprint import pprint
 import matplotlib.pyplot as plt
 
-d = dataset.NuScenesDataset("data/sets/v1.0-mini")
+d = dataset.NuScenesDataset("../data/sets/v1.0-mini")
 sam = d[140]
 
 img1 = sam['top_down_repr']
