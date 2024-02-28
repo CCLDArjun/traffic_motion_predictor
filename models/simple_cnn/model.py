@@ -48,7 +48,7 @@ def _trajectory_distance(pred, target):
     return torch.norm(pred - target)
 
 @torch.jit.script
-def loss_function(predictions, probabilities, target_prediction, prediction_loss_weight=1.0):
+def loss_function(predictions, probabilities, target_prediction, prediction_loss_weight=torch.tensor(1.0)):
     modes = len(predictions[0])
     batch_losses = torch.empty(len(predictions), 1)
 
