@@ -1,3 +1,4 @@
+import torch
 from torch.utils.data import Dataset
 from nuscenes import NuScenes
 from nuscenes.eval.prediction.splits import get_prediction_challenge_split
@@ -18,9 +19,8 @@ _size_to_split = {
     "full": "trainval"
 }
 
-
 class NuScenesDataset(Dataset):
-    def __init__(self, dataroot, size="mini", seconds_in_future=3):
+    def __init__(self, dataroot, size="mini", seconds_in_future=6):
         self.nusc = NuScenes(version=_size_to_version[size], dataroot=dataroot)
         self.instances = get_prediction_challenge_split(_size_to_split[size], dataroot=dataroot)
         self.dataroot = dataroot
@@ -72,6 +72,10 @@ class NuScenesDataset(Dataset):
 
         input_image = self.input_creator.make_input_representation(instance_token, sample_token) # this is combined agent and static raster
 
+        velocity = self.helper.get_velocity_for_agent(instance_token, sample_token)
+        acceleration = self.helper.get_acceleration_for_agent(instance_token, sample_token)
+        heading_change_rate = self.helper.get_heading_change_rate_for_agent(instance_token, sample_token)
+
         return {
             "global_sample": global_sample,
             "sample": sample,
@@ -88,5 +92,8 @@ class NuScenesDataset(Dataset):
             "top_down_repr": top_down_repr,
             "input_image": input_image,
             "agent_rast": agent_rast,
+            "velocity": velocity / 10,
+            "acceleration": acceleration * 100,
+            "heading_change_rate": heading_change_rate * 10,
         }
 
