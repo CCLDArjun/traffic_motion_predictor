@@ -1,2 +1,2 @@
-from .model import SimpleCNN
+from .model import SimpleCNN, loss_function
 

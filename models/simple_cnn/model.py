@@ -43,3 +43,31 @@ class SimpleCNN(torch.nn.Module):
 
         return predictions, probabilities
 
+@torch.jit.script
+def _trajectory_distance(pred, target):
+    return torch.norm(pred - target)
+
+@torch.jit.script
+def loss_function(predictions, probabilities, target_prediction, prediction_loss_weight=1.0):
+    modes = len(predictions[0])
+    batch_losses = torch.empty(len(predictions), 1)
+
+    for i, batch in enumerate(predictions):
+        distances = torch.empty(modes, 1)
+        for i, mode in enumerate(batch):
+            distances[i] = _trajectory_distance(predictions[batch][mode], target_prediction[batch])
+        closest_trajectory, index = torch.min(distances, dim=0)
+
+        l1_loss = F.smooth_l1_loss(closest_trajectory, target_prediction[i])
+
+        target_probability = torch.zeros(modes)
+        target_probability[index] = 1
+
+        confidence_loss = F.cross_entropy(probabilities[i], target_probability)
+
+        loss = (prediction_loss_weight * l1_loss) + confidence_loss
+
+        batch_losses[i] = loss
+
+    return torch.mean(batch_losses)
+
