@@ -4,6 +4,7 @@ sys.path.append("../")
 import torch
 from models.simple_cnn import SimpleCNN, loss_function
 import dataset
+import time
 
 NUM_MODES = 5
 PREDS_PER_MODE = 12
@@ -18,6 +19,7 @@ class SimpleCNNDataset(dataset.NuScenesDataset):
             data["heading_change_rate"],
         ])
 
+        # TODO: state_vector differs in size from sample to sample, need to fix this
         state_vector = torch.cat([state_vector, torch.flatten(torch.from_numpy(data["past"]["agent_xy_global"]))])
         agent_rast = torch.from_numpy(data["agent_rast"])
 
@@ -28,11 +30,20 @@ class SimpleCNNDataset(dataset.NuScenesDataset):
         )
 
 d = SimpleCNNDataset("../data/sets/v1.0-mini")
+
+# time this
+start = time.time()
 sample = d[0]
+end = time.time()
+print("=========")
+print(f"Time to get sample: {end - start}", flush=True)
+print(f"length of dataset: {len(d)}, estimated time to load all (mins): {(end - start) * len(d) / 60.0}")
+print("=========")
 
 model = SimpleCNN(num_modes=NUM_MODES, predictions_per_mode=PREDS_PER_MODE, state_vector_size=sample[1].shape[0])
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")
 is_cuda = device.type == "cuda"
 model.to(device)
 
@@ -42,12 +53,12 @@ model_forward = torch.jit.trace(model.forward, example_inputs=(sample[0].to(devi
 training_loader = torch.utils.data.DataLoader(d, batch_size=2, shuffle=True, pin_memory=is_cuda)
 optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
-def train_one_epoch(epoc_index, model, optimizer, dataset, device):
+def train_one_epoch(epoc_index, model, optimizer, dataloader, device):
     model.train()
     running_loss = 0
     last_loss = 0
 
-    for i, data in enumerate(training_loader):
+    for i, data in enumerate(dataloader):
         optimizer.zero_grad()
         y_pred = model_forward(data[0], data[1])
         loss = loss_function(y_pred, data[2])
@@ -58,9 +69,11 @@ def train_one_epoch(epoc_index, model, optimizer, dataset, device):
         if i % 1 == 0:
             last_loss = running_loss / 1000 # loss per batch
             print('  batch {} loss: {}'.format(i + 1, last_loss))
-            tb_x = epoch_index * len(training_loader) + i + 1
+            tb_x = epoch_index * len(dataloader) + i + 1
             tb_writer.add_scalar('Loss/train', last_loss, tb_x)
             running_loss = 0.
 
         print(f"Epoch {epoc_index}, Batch {batch_index}, Loss: {loss.item()}")
+
+#train_one_epoch(0, model, optimizer, training_loader, device)
 
