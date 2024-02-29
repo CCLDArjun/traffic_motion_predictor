@@ -1,5 +1,8 @@
+import sys
+sys.path.append("../")
+
 import torch
-from models.simple_cnn import SimpleCNN
+from models.simple_cnn import SimpleCNN, loss_function
 import dataset
 
 NUM_MODES = 5
@@ -12,37 +15,52 @@ class SimpleCNNDataset(dataset.NuScenesDataset):
         state_vector = torch.tensor([
             data["velocity"],
             data["acceleration"],
-            data["heading"],
-            torch.flatten(torch.from_numpy(data["past"]["agent_xy_global"])),
+            data["heading_change_rate"],
         ])
 
+        state_vector = torch.cat([state_vector, torch.flatten(torch.from_numpy(data["past"]["agent_xy_global"]))])
+        agent_rast = torch.from_numpy(data["agent_rast"])
+
         return (
-            torch.from_numpy(data["agent_rast"]),
-            state_vector,
-            torch.from_numpy(data["future"]["agent_xy_global"]),
+            agent_rast.unsqueeze(0).permute(0, 3, 1, 2).float(),
+            state_vector.float(),
+            torch.from_numpy(data["future"]["agent_xy_global"]).float(),
         )
 
 d = SimpleCNNDataset("../data/sets/v1.0-mini")
-model = SimpleCNN(num_modes=NUM_MODES, predictions_per_mode=PREDS_PER_MODE)
+sample = d[0]
+
+model = SimpleCNN(num_modes=NUM_MODES, predictions_per_mode=PREDS_PER_MODE, state_vector_size=sample[1].shape[0])
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 is_cuda = device.type == "cuda"
 model.to(device)
 
 # compile model.forward to make it faster
-sample = d[0]
-model_forward = torch.jit.trace(model.forward, sample[0].to(device), sample[1].to(device))
+model_forward = torch.jit.trace(model.forward, example_inputs=(sample[0].to(device), sample[1].to(device)))
 
 training_loader = torch.utils.data.DataLoader(d, batch_size=2, shuffle=True, pin_memory=is_cuda)
 optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
 def train_one_epoch(epoc_index, model, optimizer, dataset, device):
     model.train()
+    running_loss = 0
+    last_loss = 0
+
     for i, data in enumerate(training_loader):
         optimizer.zero_grad()
-        y_pred = model_forward(data["state_vector"], ))
-        loss = torch.nn.functional.mse_loss(y_pred, y)
+        y_pred = model_forward(data[0], data[1])
+        loss = loss_function(y_pred, data[2])
         loss.backward()
         optimizer.step()
+
+        running_loss += loss.item()
+        if i % 1 == 0:
+            last_loss = running_loss / 1000 # loss per batch
+            print('  batch {} loss: {}'.format(i + 1, last_loss))
+            tb_x = epoch_index * len(training_loader) + i + 1
+            tb_writer.add_scalar('Loss/train', last_loss, tb_x)
+            running_loss = 0.
+
         print(f"Epoch {epoc_index}, Batch {batch_index}, Loss: {loss.item()}")
 
