@@ -20,15 +20,16 @@ _size_to_split = {
 }
 
 class NuScenesDataset(Dataset):
-    def __init__(self, dataroot, size="mini", seconds_in_future=6):
+    def __init__(self, dataroot, size="mini", seconds_in_future=6, seconds_in_past=2):
         self.nusc = NuScenes(version=_size_to_version[size], dataroot=dataroot)
         self.instances = get_prediction_challenge_split(_size_to_split[size], dataroot=dataroot)
         self.dataroot = dataroot
         self.helper = PredictHelper(self.nusc)
         self.seconds_in_future = seconds_in_future
         self.static_later_rast = StaticLayerRasterizer(self.helper)
-        self.agent_rast = AgentBoxesWithFadedHistory(self.helper, seconds_of_history=0)
+        self.agent_rast = AgentBoxesWithFadedHistory(self.helper, seconds_of_history=seconds_in_past)
         self.input_creator = InputRepresentation(self.static_later_rast, self.agent_rast, Rasterizer())
+        self.seconds_in_past = seconds_in_past
 
     def __len__(self):
         return len(self.instances)
@@ -41,26 +42,29 @@ class NuScenesDataset(Dataset):
         kwargs = {
             "instance_token": instance_token,
             "sample_token": sample_token,
-            "seconds": self.seconds_in_future,
         }
 
         agent_future_xy_local = self.helper.get_future_for_agent(
             **kwargs,
+            seconds=self.seconds_in_future,
             in_agent_frame=True,
         )
 
         agent_future_xy_global = self.helper.get_future_for_agent(
             **kwargs,
+            seconds=self.seconds_in_future,
             in_agent_frame=False,
         )
 
         agent_past_xy_local = self.helper.get_past_for_agent(
             **kwargs,
+            seconds=self.seconds_in_past,
             in_agent_frame=True,
         )
 
         agent_past_xy_global = self.helper.get_past_for_agent(
             **kwargs,
+            seconds=self.seconds_in_past,
             in_agent_frame=False,
         )
 
