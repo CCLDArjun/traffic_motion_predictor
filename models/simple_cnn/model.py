@@ -36,7 +36,7 @@ class SimpleCNN(torch.nn.Module):
         x = self.fc2(x)
 
         # each mode has a probability so the length is num_modes
-        probabilities, predictions = torch.split(x, [self.num_modes, len(x[0]) - self.num_modes], dim=1)
+        probabilities, predictions = torch.split(x, [self.num_modes, x[0].shape[0] - self.num_modes], dim=1)
 
         predictions = torch.reshape(predictions, (-1, self.num_modes, 2 * self.predictions_per_mode))
         probabilities = F.softmax(probabilities, dim=1)
@@ -49,8 +49,8 @@ def _trajectory_distance(pred, target):
 
 @torch.jit.script
 def loss_function(predictions, probabilities, target_prediction, prediction_loss_weight=torch.tensor(1.0)):
-    modes = len(predictions[0])
-    batch_losses = torch.empty(len(predictions), 1)
+    modes = predictions[0].shape[0]
+    batch_losses = torch.empty(predictions.shape[0], 1)
 
     for i, batch in enumerate(predictions):
         distances = torch.empty(modes, 1)
