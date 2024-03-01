@@ -19,7 +19,6 @@ class SimpleCNNDataset(dataset.NuScenesDataset):
             data["heading_change_rate"],
         ])
 
-        # TODO: state_vector differs in size from sample to sample, need to fix this
         state_vector = torch.cat([state_vector, torch.flatten(torch.from_numpy(data["past"]["agent_xy_global"]))])
         agent_rast = torch.from_numpy(data["agent_rast"])
 
@@ -39,6 +38,18 @@ print("=========")
 print(f"Time to get sample: {end - start}", flush=True)
 print(f"length of dataset: {len(d)}, estimated time to load all (mins): {(end - start) * len(d) / 60.0}")
 print("=========")
+
+def test_dataset(d):
+    sets = [set(), set(), set()]
+    for data in d:
+        sets[0].add(data[0].shape)
+        sets[1].add(data[1].shape)
+        sets[2].add(data[2].shape)
+    print(sets)
+import cProfile
+
+cProfile.run('test_dataset(d)')
+
 
 model = SimpleCNN(num_modes=NUM_MODES, predictions_per_mode=PREDS_PER_MODE, state_vector_size=sample[1].shape[0])
 

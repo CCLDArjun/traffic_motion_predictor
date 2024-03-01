@@ -1,5 +1,9 @@
 import torch
 from torch.utils.data import Dataset
+
+import numpy as np
+import matplotlib.pyplot as plt
+
 from nuscenes import NuScenes
 from nuscenes.eval.prediction.splits import get_prediction_challenge_split
 from nuscenes.prediction import PredictHelper
@@ -7,7 +11,6 @@ from nuscenes.prediction.input_representation.static_layers import StaticLayerRa
 from nuscenes.prediction.input_representation.agents import AgentBoxesWithFadedHistory
 from nuscenes.prediction.input_representation.interface import InputRepresentation
 from nuscenes.prediction.input_representation.combinators import Rasterizer
-import matplotlib.pyplot as plt
 
 _size_to_version = {
     "mini": "v1.0-mini",
@@ -30,9 +33,17 @@ class NuScenesDataset(Dataset):
         self.agent_rast = AgentBoxesWithFadedHistory(self.helper, seconds_of_history=seconds_in_past)
         self.input_creator = InputRepresentation(self.static_later_rast, self.agent_rast, Rasterizer())
         self.seconds_in_past = seconds_in_past
+        self.hertz = 2
 
     def __len__(self):
         return len(self.instances)
+
+    def _pad(self, array, length):
+        if len(array) == length:
+            return array
+        first = array[0]
+        padding = np.array([first] * (length - len(array)))
+        return np.concatenate([array, padding], axis=0)
 
     def __getitem__(self, idx):
         # instance_token  is the token of the agent we want to track
@@ -90,8 +101,8 @@ class NuScenesDataset(Dataset):
                 "agent_xy_global": agent_future_xy_global,
             },
             "past": {
-                "agent_xy_local": agent_past_xy_local,
-                "agent_xy_global": agent_past_xy_global,
+                "agent_xy_local": self._pad(agent_past_xy_local, self.seconds_in_past * self.hertz),
+                "agent_xy_global": self._pad(agent_past_xy_global, self.seconds_in_past * self.hertz),
             },
             "top_down_repr": top_down_repr,
             "input_image": input_image,
