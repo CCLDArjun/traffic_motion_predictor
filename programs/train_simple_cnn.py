@@ -48,8 +48,7 @@ def test_dataset(d):
     print(sets)
 import cProfile
 
-cProfile.run('test_dataset(d)')
-
+#cProfile.run('test_dataset(d)')
 
 model = SimpleCNN(num_modes=NUM_MODES, predictions_per_mode=PREDS_PER_MODE, state_vector_size=sample[1].shape[0])
 
@@ -70,6 +69,11 @@ def train_one_epoch(epoc_index, model, optimizer, dataloader, device):
     last_loss = 0
 
     for i, data in enumerate(dataloader):
+        # SimpleCNNDataset returns shape (1, C, H, W), dataloader returns (B, 1, C, H, W)
+        # squeeze to remove the 1 dimension
+        data[0] = data[0].squeeze(1)
+
+        breakpoint()
         optimizer.zero_grad()
         y_pred = model_forward(data[0], data[1])
         loss = loss_function(y_pred, data[2])
@@ -86,5 +90,5 @@ def train_one_epoch(epoc_index, model, optimizer, dataloader, device):
 
         print(f"Epoch {epoc_index}, Batch {batch_index}, Loss: {loss.item()}")
 
-#train_one_epoch(0, model, optimizer, training_loader, device)
+train_one_epoch(0, model, optimizer, training_loader, device)
 
