@@ -58,12 +58,12 @@ is_cuda = device.type == "cuda"
 model.to(device)
 
 # compile model.forward to make it faster
-model_forward = torch.jit.trace(model.forward, example_inputs=(sample[0].to(device), sample[1].to(device)))
+#model_forward = torch.jit.trace(model.forward, example_inputs=(sample[0].to(device), sample[1].to(device)))
 
 training_loader = torch.utils.data.DataLoader(d, batch_size=2, shuffle=True, pin_memory=is_cuda)
 optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
-def train_one_epoch(epoc_index, model, optimizer, dataloader, device):
+def train_one_epoch(epoch_index, model, optimizer, dataloader, device):
     model.train()
     running_loss = 0
     last_loss = 0
@@ -73,10 +73,9 @@ def train_one_epoch(epoc_index, model, optimizer, dataloader, device):
         # squeeze to remove the 1 dimension
         data[0] = data[0].squeeze(1)
 
-        breakpoint()
         optimizer.zero_grad()
-        y_pred = model_forward(data[0], data[1])
-        loss = loss_function(y_pred, data[2])
+        y_pred = model.forward(data[0], data[1])
+        loss = loss_function(*y_pred, data[2])
         loss.backward()
         optimizer.step()
 

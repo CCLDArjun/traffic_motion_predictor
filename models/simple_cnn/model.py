@@ -38,36 +38,39 @@ class SimpleCNN(torch.nn.Module):
         # each mode has a probability so the length is num_modes
         probabilities, predictions = torch.split(x, [self.num_modes, x[0].shape[0] - self.num_modes], dim=1)
 
-        predictions = torch.reshape(predictions, (-1, self.num_modes, 2 * self.predictions_per_mode))
+        predictions = torch.reshape(predictions, (-1, self.num_modes, self.predictions_per_mode, 2))
         probabilities = F.softmax(probabilities, dim=1)
 
         return predictions, probabilities
 
-@torch.jit.script
 def _trajectory_distance(pred, target):
     return torch.norm(pred - target)
 
-@torch.jit.script
 def loss_function(predictions, probabilities, target_prediction, prediction_loss_weight=torch.tensor(1.0)):
     modes = predictions[0].shape[0]
     batch_losses = torch.empty(predictions.shape[0], 1)
 
-    for i, batch in enumerate(predictions):
+    for batch_i, batch in enumerate(predictions):
         distances = torch.empty(modes, 1)
-        for i, mode in enumerate(batch):
-            distances[i] = _trajectory_distance(predictions[batch][mode], target_prediction[batch])
-        closest_trajectory, index = torch.min(distances, dim=0)
+        for mode_i, mode in enumerate(batch):
+            distances[mode_i] = _trajectory_distance(
+                predictions[batch_i][mode_i],
+                target_prediction[batch_i]
+            )
 
-        l1_loss = F.smooth_l1_loss(closest_trajectory, target_prediction[i])
+        _, closest_trajectory_i = torch.min(distances, dim=0)
+        closest_trajectory = predictions[batch_i][closest_trajectory_i].squeeze(0)
+
+        l1_loss = F.smooth_l1_loss(closest_trajectory, target_prediction[batch_i])
 
         target_probability = torch.zeros(modes)
-        target_probability[index] = 1
+        target_probability[closest_trajectory_i] = 1
 
-        confidence_loss = F.cross_entropy(probabilities[i], target_probability)
+        confidence_loss = F.cross_entropy(probabilities[batch_i], target_probability)
 
         loss = (prediction_loss_weight * l1_loss) + confidence_loss
 
-        batch_losses[i] = loss
+        batch_losses[batch_i] = loss
 
     return torch.mean(batch_losses)
 
