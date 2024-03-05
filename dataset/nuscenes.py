@@ -107,8 +107,8 @@ class NuScenesDataset(Dataset):
             "top_down_repr": top_down_repr,
             "input_image": input_image,
             "agent_rast": agent_rast,
-            "velocity": velocity / 10,
-            "acceleration": acceleration * 100,
-            "heading_change_rate": heading_change_rate * 10,
+            "velocity": velocity,
+            "acceleration": acceleration,
+            "heading_change_rate": heading_change_rate,
         }
 

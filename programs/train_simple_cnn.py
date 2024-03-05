@@ -1,10 +1,15 @@
 import sys
 sys.path.append("../")
 
+import time
+
 import torch
+from torch.utils.tensorboard import SummaryWriter
+
 from models.simple_cnn import SimpleCNN, loss_function
 import dataset
-import time
+
+torch.set_printoptions(sci_mode=False)
 
 NUM_MODES = 5
 PREDS_PER_MODE = 12
@@ -19,7 +24,7 @@ class SimpleCNNDataset(dataset.NuScenesDataset):
             data["heading_change_rate"],
         ])
 
-        state_vector = torch.cat([state_vector, torch.flatten(torch.from_numpy(data["past"]["agent_xy_global"]))])
+        state_vector = torch.cat([state_vector, torch.flatten(torch.from_numpy(data["past"]["agent_xy_global"])) / 1000.0])
         agent_rast = torch.from_numpy(data["agent_rast"])
 
         return (
@@ -63,7 +68,9 @@ model.to(device)
 training_loader = torch.utils.data.DataLoader(d, batch_size=2, shuffle=True, pin_memory=is_cuda)
 optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
-def train_one_epoch(epoch_index, model, optimizer, dataloader, device):
+tb_writer = SummaryWriter()
+
+def train_one_epoch(epoch_index, model, optimizer, dataloader, device, tb_writer):
     model.train()
     running_loss = 0
     last_loss = 0
@@ -73,6 +80,7 @@ def train_one_epoch(epoch_index, model, optimizer, dataloader, device):
         # squeeze to remove the 1 dimension
         data[0] = data[0].squeeze(1)
 
+        breakpoint()
         optimizer.zero_grad()
         y_pred = model.forward(data[0], data[1])
         loss = loss_function(*y_pred, data[2])
@@ -87,7 +95,9 @@ def train_one_epoch(epoch_index, model, optimizer, dataloader, device):
             tb_writer.add_scalar('Loss/train', last_loss, tb_x)
             running_loss = 0.
 
-        print(f"Epoch {epoc_index}, Batch {batch_index}, Loss: {loss.item()}")
+        print(f"Epoch {epoch_index}, Batch {i}, Loss: {loss.item()}")
 
-train_one_epoch(0, model, optimizer, training_loader, device)
+if __name__ == "__main__":
+    for x in range(1,100):
+        train_one_epoch(x, model, optimizer, training_loader, device, tb_writer)
 

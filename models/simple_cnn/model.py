@@ -68,6 +68,8 @@ def loss_function(predictions, probabilities, target_prediction, prediction_loss
 
         confidence_loss = F.cross_entropy(probabilities[batch_i], target_probability)
 
+
+        print(f"l1_loss: {l1_loss}, confidence_loss: {confidence_loss}")
         loss = (prediction_loss_weight * l1_loss) + confidence_loss
 
         batch_losses[batch_i] = loss
