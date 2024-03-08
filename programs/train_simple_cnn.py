@@ -17,6 +17,10 @@ cpu = False
 NUM_MODES = 5
 PREDS_PER_MODE = 12
 
+BATCH_SIZE = 16
+LEARNING_RATE = 0.0001
+MOMENTUM = 0.9
+
 d = SimpleCNNDataset("../data/sets/v1.0-mini")
 
 # time this
@@ -37,8 +41,8 @@ model.to(device)
 # compile model.forward to make it faster
 #model_forward = torch.jit.trace(model.forward, example_inputs=(sample[0].to(device), sample[1].to(device)))
 
-training_loader = torch.utils.data.DataLoader(d, batch_size=2, shuffle=True, pin_memory=is_cuda)
-optimizer = torch.optim.SGD(model.parameters(), lr=0.0001, momentum=0.9)
+training_loader = torch.utils.data.DataLoader(d, batch_size=BATCH_SIZE, shuffle=True, pin_memory=is_cuda)
+optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATE, momentum=MOMENTUM)
 
 tb_writer = SummaryWriter()
 
