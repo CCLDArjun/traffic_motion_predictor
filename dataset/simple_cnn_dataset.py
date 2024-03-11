@@ -16,8 +16,10 @@ MIN_ACCELERATION = -10
 MAX_HEADING_CHANGE_RATE = 0.42
 MIN_HEADING_CHANGE_RATE = -0.26
 
+
 def normalize(value, min, max):
     return (value - min) / (max - min)
+
 
 class SimpleCNNDataset(NuScenesDataset):
     @functools.lru_cache(maxsize=10_000_000)
@@ -34,7 +36,7 @@ class SimpleCNNDataset(NuScenesDataset):
 
         xy_in = torch.flatten(torch.from_numpy(data["past"]["agent_xy_global"]))
         xy_in = normalize(xy_in, MIN_XY, MAX_XY)
-        
+
         state_vector = torch.cat([state_vector, xy_in])
         agent_rast = torch.from_numpy(data["agent_rast"])
 
@@ -43,6 +45,7 @@ class SimpleCNNDataset(NuScenesDataset):
             state_vector.float(),
             normalize(torch.from_numpy(data["future"]["agent_xy_global"]).float(), MIN_XY, MAX_XY),
         )
+
 
 def normalization_values():
     maxes = [0, 0, 0]
@@ -66,4 +69,3 @@ def normalization_values():
     print("MAXES: ", maxes)
     print("MINS: ", mins)
     print("XY: ", min_xy, max_xy)
-
