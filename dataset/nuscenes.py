@@ -19,7 +19,7 @@ _size_to_version = {
 
 _size_to_split = {
     "mini": "mini_train",
-    "full": "trainval"
+    "full": "train",
 }
 
 class NuScenesDataset(Dataset):
