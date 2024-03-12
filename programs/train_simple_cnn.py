@@ -15,11 +15,14 @@ torch.set_printoptions(sci_mode=False)
 torch.autograd.set_detect_anomaly(True)
 
 cpu = False
+PROFILE = True
+CHECK_NAN = False
 
 NUM_MODES = 5
 PREDS_PER_MODE = 12
 
-BATCH_SIZE = 32
+EPOCHS = 1
+BATCH_SIZE = 16
 LEARNING_RATE = 0.0001
 MOMENTUM = 0.9
 
@@ -33,7 +36,6 @@ print("=========")
 print(f"Time to get sample: {end - start}", flush=True)
 print(f"length of dataset: {len(d)}, estimated time to load all (mins): {(end - start) * len(d) / 60.0}")
 print("=========")
-
 
 run_id = random_id(10)
 model = SimpleCNN(num_modes=NUM_MODES, predictions_per_mode=PREDS_PER_MODE, state_vector_size=sample[1].shape[0])
@@ -49,6 +51,30 @@ optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 tb_writer = SummaryWriter()
 
+def profiler(F, filename): 
+    def new_func(*args, **kwargs):
+        with profile(
+            activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+            with_stack=True,
+            profile_memory=True,
+            experimental_config=torch._C._profiler._ExperimentalConfig(verbose=True)
+        ) as prof:
+            ret = F(*args, **kwargs)
+
+        print("CPUUUU")
+        print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
+        print("CUDAAA")
+        print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
+
+        prof.export_stacks(filename, "self_cuda_time_total")
+        return ret
+    return new_func
+
+if PROFILE:
+    model_forward = profiler(model.__call__, "forward_stacks.txt")
+    loss_function = profiler(loss_function, "loss_stacks.txt")
+else:
+    model_forward = model.__call__
 
 def train_one_epoch(epoch_index, model, optimizer, dataloader, device, tb_writer):
     model.train()
@@ -58,22 +84,31 @@ def train_one_epoch(epoch_index, model, optimizer, dataloader, device, tb_writer
 
     for i, data in enumerate(dataloader):
         print(i)
-        if i == 10: return
+        if i == 1: return
         # SimpleCNNDataset returns shape (1, C, H, W), dataloader returns (B, 1, C, H, W)
         # squeeze to remove the 1 dimension
 
         data[0] = data[0].squeeze(1)
 
         for i, d_ in enumerate(data):
-            if d_.isnan().any():
-                print("NAN FOUND")
-                breakpoint()
             data[i] = d_.to(device)
 
+        if CHECK_NAN:
+            for i, d_ in enumerate(data):
+                if d_.isnan().any():
+                    print("NAN FOUND")
+                    breakpoint()
+
         optimizer.zero_grad()
-        y_pred = model.forward(data[0], data[1])
+
+        y_pred = model_forward(data[0], data[1])
         loss, l1_loss = loss_function(*y_pred, data[2])
-        loss.backward()
+
+        if not PROFILE:
+            loss.backward()
+        else:
+            profiler(loss.backward, "backward_stacks.txt")()
+
         optimizer.step()
 
         running_loss += loss.item()
@@ -93,18 +128,9 @@ def train_one_epoch(epoch_index, model, optimizer, dataloader, device, tb_writer
 
 
 if __name__ == "__main__":
-    for x in range(1, 100):
+    for x in range(1, EPOCHS + 1):
         print("EPOCH: ", x)
-        with profile(
-            activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
-            with_stack=True,
-        ) as prof:
-            train_one_epoch(x, model, optimizer, training_loader, device, tb_writer)
-        prof.export_chrome_trace("trace.json")
-        print("CPUUUU")
-        print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
-        print("CUDAAA")
-        print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
+        train_one_epoch(x, model, optimizer, training_loader, device, tb_writer)
 
         torch.save({
             'epoch': x,
