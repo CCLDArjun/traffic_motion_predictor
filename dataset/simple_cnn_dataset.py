@@ -22,7 +22,13 @@ def normalize(value, min, max):
 
 
 class SimpleCNNDataset(NuScenesDataset):
-    @functools.lru_cache(maxsize=10_000_000)
+    def __init__(self, *args, **kwargs):
+        cache_size = kwargs.pop("cache_size", 10_000_000)
+
+        super().__init__(*args, **kwargs)
+
+        self.__getitem__ = functools.lru_cache(maxsize=cache_size)(self.__getitem__)
+
     def __getitem__(self, idx):
         data = super().__getitem__(idx)
 
@@ -34,16 +40,16 @@ class SimpleCNNDataset(NuScenesDataset):
 
         state_vector[state_vector.isnan()] = 0
 
-        xy_in = torch.flatten(torch.from_numpy(data["past"]["agent_xy_global"]))
+        xy_in = torch.flatten(torch.Tensor(data["past"]["agent_xy_global"]))
         xy_in = normalize(xy_in, MIN_XY, MAX_XY)
 
         state_vector = torch.cat([state_vector, xy_in])
-        agent_rast = torch.from_numpy(data["agent_rast"])
+        agent_rast = torch.Tensor(data["agent_rast"])
 
         return (
             agent_rast.unsqueeze(0).permute(0, 3, 1, 2).float(),
             state_vector.float(),
-            normalize(torch.from_numpy(data["future"]["agent_xy_global"]).float(), MIN_XY, MAX_XY),
+            normalize(torch.from_numpy(data["future"]["agent_xy_global"]), MIN_XY, MAX_XY),
         )
 
 
