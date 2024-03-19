@@ -1,6 +1,7 @@
 from .nuscenes import NuScenesDataset
 from .simple_cnn_dataset import SimpleCNNDataset
 from .dict_dataset import DictDataset
+from .chunk_reader import ChunkReader
 
 def test_dataset(d):
     sets = [set(), set(), set()]

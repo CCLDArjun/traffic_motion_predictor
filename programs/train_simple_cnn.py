@@ -9,7 +9,7 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 from models.simple_cnn import SimpleCNN, loss_function
 
-from dataset import SimpleCNNDataset, DictDataset
+from dataset import SimpleCNNDataset, DictDataset, ChunkReader
 from utils import random_id, get_time_str, nsight_profiler, profiler, startNsight, stopNsight
 
 torch.autograd.set_detect_anomaly(False)
@@ -31,10 +31,16 @@ BATCH_SIZE = 16
 LEARNING_RATE = 0.0001
 MOMENTUM = 0.9
 
-PICKLE_DATASET = True
+PICKLE_DATASET = False
 PICKLE_DATASET_PATH = "simple_cnn_dataset.pickle"
 
-if not os.path.isfile(PICKLE_DATASET_PATH) and PICKLE_DATASET:
+CHUNK_DATASET = True
+CHUNK_DATASET_PATH = "./chunks/"
+
+if CHUNK_DATASET:
+    d = ChunkReader(CHUNK_DATASET_PATH)
+    print("LOADED CHUNK DATASET")
+elif not os.path.isfile(PICKLE_DATASET_PATH) and PICKLE_DATASET:
     d = SimpleCNNDataset("../data/sets/v1.0-trainval", size="full", cache_size=0)
 
     arr = []
@@ -72,7 +78,7 @@ model.to(device)
 # compile model.forward to make it faster
 # model_forward = torch.jit.trace(model.forward, example_inputs=(sample[0].to(device), sample[1].to(device)))
 
-training_loader = torch.utils.data.DataLoader(d, batch_size=BATCH_SIZE, shuffle=True, pin_memory=is_cuda)
+training_loader = torch.utils.data.DataLoader(d, batch_size=BATCH_SIZE, shuffle=True, pin_memory=is_cuda, num_workers=8, persistent_workers=True, prefetch_factor=5)
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 tb_writer = SummaryWriter()
@@ -93,16 +99,13 @@ def train_one_epoch(epoch_index, model, optimizer, dataloader, device, tb_writer
     last_loss = 0
 
     for i, data in enumerate(dataloader):
-        print(i, flush=True)
         # SimpleCNNDataset returns shape (1, C, H, W), dataloader returns (B, 1, C, H, W)
         # squeeze to remove the 1 dimension
 
         for i, d_ in enumerate(data):
-            data[i] = d_.cuda()
+            data[i] = d_.cuda(non_blocking=True)
 
         data[0] = data[0].squeeze(1)
-
-        breakpoint()
 
         if CHECK_NAN:
             for i, d_ in enumerate(data):
@@ -122,7 +125,7 @@ def train_one_epoch(epoch_index, model, optimizer, dataloader, device, tb_writer
         else:
             loss.backward()
 
-        #optimizer.step()
+        optimizer.step()
 
         #running_loss += loss.item()
         #running_l1_loss += l1_loss
