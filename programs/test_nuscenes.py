@@ -11,6 +11,7 @@ sam = d[140]
 img1 = sam['top_down_repr']
 img2 = sam['agent_rast']
 
+breakpoint()
 
 # display both images in a single plot
 fig, axes = plt.subplots(1, 2)
