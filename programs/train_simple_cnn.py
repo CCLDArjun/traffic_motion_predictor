@@ -26,10 +26,12 @@ WARMUP_EPOCHS = 1
 NUM_MODES = 5
 PREDS_PER_MODE = 12
 
-EPOCHS = 1 + WARMUP_EPOCHS
+EPOCHS = 20 + WARMUP_EPOCHS
 BATCH_SIZE = 16
 LEARNING_RATE = 0.0001
 MOMENTUM = 0.9
+REPORT_INTERVAL = 15 # batches
+PRINT_INTERVAL = 15 # batches
 
 PICKLE_DATASET = False
 PICKLE_DATASET_PATH = "simple_cnn_dataset.pickle"
@@ -102,13 +104,13 @@ def train_one_epoch(epoch_index, model, optimizer, dataloader, device, tb_writer
         # SimpleCNNDataset returns shape (1, C, H, W), dataloader returns (B, 1, C, H, W)
         # squeeze to remove the 1 dimension
 
-        for i, d_ in enumerate(data):
-            data[i] = d_.cuda(non_blocking=True)
+        for j, d_ in enumerate(data):
+            data[j] = d_.cuda(non_blocking=True)
 
         data[0] = data[0].squeeze(1)
 
         if CHECK_NAN:
-            for i, d_ in enumerate(data):
+            for _, d_ in enumerate(data):
                 if d_.isnan().any():
                     print("NAN FOUND")
                     breakpoint()
@@ -125,23 +127,22 @@ def train_one_epoch(epoch_index, model, optimizer, dataloader, device, tb_writer
         else:
             loss.backward()
 
+
+        running_loss += loss.item()
+        running_l1_loss += l1_loss
+
         optimizer.step()
 
-        #running_loss += loss.item()
-        #running_l1_loss += l1_loss
+        if i % REPORT_INTERVAL == REPORT_INTERVAL - 1:
+            running_loss /= REPORT_INTERVAL - 1 # loss per batch
+            running_l1_loss /= REPORT_INTERVAL - 1
 
-        #if i % 5 == 0:
-        #    last_loss = running_loss / 5  # loss per batch
-        #    running_l1_loss /= 5
+            tb_x = epoch_index * len(dataloader) + i + 1
+            tb_writer.add_scalar('Loss/train', running_loss, tb_x)
+            tb_writer.add_scalar('Loss/l1_loss', running_l1_loss, tb_x)
 
-        #    print('  batch {} loss: {}'.format(i + 1, last_loss))
-        #    tb_x = epoch_index * len(dataloader) + i + 1
-        #    tb_writer.add_scalar('Loss/train', last_loss, tb_x)
-        #    tb_writer.add_scalar('Loss/l1_loss', running_l1_loss, tb_x)
-
-        #    running_loss = 0.
-        #    running_l1_loss = 0.
-
+            running_loss = 0.
+            running_l1_loss = 0.
 
 if __name__ == "__main__":
     if MEMORY_PROFILE:

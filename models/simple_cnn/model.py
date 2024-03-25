@@ -5,6 +5,7 @@ Inspired by MTP: https://arxiv.org/pdf/1809.10732.pdf
 import torch
 import torchvision
 import torch.nn.functional as F
+from torch import _dynamo as torchdynamo
 
 def construct_base_cnn():
     base_cnn = torchvision.models.mobilenet_v2(pretrained=True)
@@ -56,6 +57,7 @@ def _torch_zeros_factory(tensor):
         return tensor.new_zeros(*args, **kwargs)
     return F
 
+@torchdynamo.optimize()
 def loss_function(predictions, probabilities, target_prediction, prediction_loss_weight=torch.tensor(1.0)):
     torch_empty = _torch_empty_factory(predictions)
     torch_zeros = _torch_zeros_factory(predictions)
