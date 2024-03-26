@@ -11,6 +11,7 @@ from models.simple_cnn import SimpleCNN, loss_function
 
 from dataset import SimpleCNNDataset, DictDataset, ChunkReader
 from utils import random_id, get_time_str, nsight_profiler, profiler, startNsight, stopNsight
+from utils.metrics import minADE, minFDE
 
 torch.autograd.set_detect_anomaly(False)
 #torch.cuda.set_sync_debug_mode(1)
@@ -98,6 +99,8 @@ def train_one_epoch(epoch_index, model, optimizer, dataloader, device, tb_writer
     model.train()
     running_loss = 0
     running_l1_loss = 0
+    running_minADE = 0
+    running_minFDE = 0
     last_loss = 0
 
     for i, data in enumerate(dataloader):
@@ -127,22 +130,29 @@ def train_one_epoch(epoch_index, model, optimizer, dataloader, device, tb_writer
         else:
             loss.backward()
 
-
         running_loss += loss.item()
         running_l1_loss += l1_loss
+        running_minADE += minADE(*y_pred, data[2], k=NUM_MODES).sum().item()
+        running_minFDE += minFDE(*y_pred, data[2], k=NUM_MODES).sum().item()
 
         optimizer.step()
 
         if i % REPORT_INTERVAL == REPORT_INTERVAL - 1:
             running_loss /= REPORT_INTERVAL - 1 # loss per batch
             running_l1_loss /= REPORT_INTERVAL - 1
+            running_minADE /= REPORT_INTERVAL - 1
+            running_minFDE /= REPORT_INTERVAL - 1
 
             tb_x = epoch_index * len(dataloader) + i + 1
             tb_writer.add_scalar('Loss/train', running_loss, tb_x)
             tb_writer.add_scalar('Loss/l1_loss', running_l1_loss, tb_x)
+            tb_writer.add_scalar('Metrics/minADE', running_minADE, tb_x)
+            tb_writer.add_scalar('Metrics/minFDE', running_minFDE, tb_x)
 
             running_loss = 0.
             running_l1_loss = 0.
+            running_minADE = 0.
+            running_minFDE = 0.
 
 if __name__ == "__main__":
     if MEMORY_PROFILE:
