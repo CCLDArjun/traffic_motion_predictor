@@ -1,5 +1,7 @@
 import torch
+from torch import _dynamo as torchdynamo
 
+torchdynamo.optimize()
 def minADE(predictions, probabilities, gt, k=-1):
     distances = torch.norm(predictions - gt.unsqueeze(1), dim=-1)
     ret = torch.empty((predictions.shape[0],))
@@ -13,6 +15,7 @@ def minADE(predictions, probabilities, gt, k=-1):
 
     return ret
 
+torchdynamo.optimize()
 def minFDE(predictions, probabilities, gt, k=-1):
     distances = torch.norm(predictions - gt.unsqueeze(1), dim=-1)
     sorted_idx = torch.argsort(probabilities, descending=True)

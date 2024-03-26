@@ -6,10 +6,12 @@ import pickle
 import os
 
 import torch
+from torch import _dynamo as torchdynamo
 from torch.utils.tensorboard import SummaryWriter
 from models.simple_cnn import SimpleCNN, loss_function
 
 from dataset import SimpleCNNDataset, DictDataset, ChunkReader
+from dataset.simple_cnn_dataset import denormalize_xy
 from utils import random_id, get_time_str, nsight_profiler, profiler, startNsight, stopNsight
 from utils.metrics import minADE, minFDE
 
@@ -95,6 +97,20 @@ if NSIGHT_PROFILE:
     loss_function = nsight_profiler(loss_function, "loss")
     optimizer.step = nsight_profiler(optimizer.step, "optstep")
 
+torchdynamo.optimize()
+def calculate_metrics(predictions, probabilities, gt):
+    # denormalize predictions and ground truth
+    predictions = denormalize_xy(predictions)
+    gt = denormalize_xy(gt)
+
+    minADE_ = minADE(predictions, probabilities, gt, k=NUM_MODES).sum().item()
+    minFDE_ = minFDE(predictions, probabilities, gt, k=NUM_MODES).sum().item()
+
+    return {
+        "minADE": minADE_,
+        "minFDE": minFDE_,
+    }
+
 def train_one_epoch(epoch_index, model, optimizer, dataloader, device, tb_writer):
     model.train()
     running_loss = 0
@@ -132,8 +148,10 @@ def train_one_epoch(epoch_index, model, optimizer, dataloader, device, tb_writer
 
         running_loss += loss.item()
         running_l1_loss += l1_loss
-        running_minADE += minADE(*y_pred, data[2], k=NUM_MODES).sum().item()
-        running_minFDE += minFDE(*y_pred, data[2], k=NUM_MODES).sum().item()
+
+        metrics = calculate_metrics(*y_pred, data[2])
+        running_minADE += metrics["minADE"]
+        running_minFDE += metrics["minFDE"]
 
         optimizer.step()
 

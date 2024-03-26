@@ -20,6 +20,10 @@ MIN_HEADING_CHANGE_RATE = -0.26
 def normalize(value, min, max):
     return (value - min) / (max - min)
 
+def denormalize(value, min, max):
+    return value * (max - min) + min
+
+denormalize_xy = functools.partial(denormalize, min=MIN_XY, max=MAX_XY)
 
 class SimpleCNNDataset(NuScenesDataset):
     def __init__(self, *args, **kwargs):
