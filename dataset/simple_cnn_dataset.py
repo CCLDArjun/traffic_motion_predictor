@@ -31,8 +31,6 @@ class SimpleCNNDataset(NuScenesDataset):
 
         super().__init__(*args, **kwargs)
 
-        self.__getitem__ = functools.lru_cache(maxsize=cache_size)(self.__getitem__)
-
     def __getitem__(self, idx):
         data = super().__getitem__(idx)
 

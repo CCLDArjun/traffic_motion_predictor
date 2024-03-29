@@ -21,7 +21,9 @@ def process_chunk(start, end):
         if end > len(d):
             end = len(d)
 
-        torch.save(d[i], chunk_folder + f"{start}-{end}.pt")
+        sample = d[start]
+        torch.save(sample, chunk_folder + f"{start}-{end}.pt")
+        print(sample[0].mean())
 
         end_time = time.time()
         print("Saved", start, end, "took", end_time - start_time, "seconds")
