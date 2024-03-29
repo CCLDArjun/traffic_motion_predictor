@@ -32,7 +32,7 @@ class SimpleCNN(torch.nn.Module):
         x = F.relu(self.fc1(x))
 
         if latent_output == "fc1":
-            return fc1
+            return x
 
         x = self.fc2(x)
 
