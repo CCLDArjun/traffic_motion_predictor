@@ -12,5 +12,8 @@ class ChunkReader(torch.utils.data.Dataset):
         return self.len
 
     def __getitem__(self, idx):
+        if idx < 0:
+            idx += self.len
+
         return torch.load(os.path.join(self.path, f"{idx}-{idx+1}.pt"))
 

@@ -8,7 +8,7 @@ import torch
 from dataset import SimpleCNNDataset
 import time
 
-d = SimpleCNNDataset("../data/sets/v1.0-trainval", size="full", cache_size=0)
+d = SimpleCNNDataset("../data/sets/v1.0-trainval", size="full", cache_size=0, normalize=False)
 
 def process_chunk(start, end):
     try:
@@ -23,7 +23,6 @@ def process_chunk(start, end):
 
         sample = d[start]
         torch.save(sample, chunk_folder + f"{start}-{end}.pt")
-        print(sample[0].mean())
 
         end_time = time.time()
         print("Saved", start, end, "took", end_time - start_time, "seconds")
