@@ -8,7 +8,7 @@ import torch
 from dataset import SimpleCNNDataset
 import time
 
-d = SimpleCNNDataset("../data/sets/v1.0-trainval", size="full", cache_size=0, normalize=False)
+d = SimpleCNNDataset("../data/sets/v1.0-trainval", size="full", cache_size=0, normalize=True)
 
 def process_chunk(start, end):
     try:
