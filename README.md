@@ -4,6 +4,18 @@ Given 1 second of traffic and an agent's starting position, predict its trajecto
 [The pitch](https://docs.google.com/presentation/d/1E2o_M7UZ1KbnwBISfUV8wHGs3iV3WCgAW15c2zrsciA/edit?usp=sharing)
 
 ***
+### Findings
+
+| name         | Pretrained CNN | Backbone CNN | Type      | Learning Rate | Momentum | minFDE_val | minADE_val | Epochs |
+|--------------|----------------|--------------|-----------|---------------|----------|------------|------------|--------|
+| simple_cnn_1 | Yes            | mobile-net   | SimpleCNN | 0.0001        | 0.9      | 228        | 1622       | 160    |
+|              | Yes            | mobile-net   | SimpleCNN | 0.001         | 0.9      | -          | -          | -      |
+|              |                |              |           |               |          |            |            |        |
+|              |                |              |           |               |          |            |            |        |
+
+name to id:
+- simple_cnn_1: simple_cnn_rofjQV2NUK1trG6vmlqOSEDd7bHr9OxUHzAVEjV7d
+
 ### Setup
 
 #### Setting up Python
