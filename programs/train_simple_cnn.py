@@ -29,12 +29,13 @@ WARMUP_EPOCHS = 1
 NUM_MODES = 25
 PREDS_PER_MODE = 12
 
-EPOCHS = 40 + WARMUP_EPOCHS
+EPOCHS = 160 + WARMUP_EPOCHS
 BATCH_SIZE = 16
 LEARNING_RATE = 0.0001
 MOMENTUM = 0.9
 REPORT_INTERVAL = 15 # batches
 PRINT_INTERVAL = 15 # batches
+VALIDATION_INTERVAL = REPORT_INTERVAL * 50 # batches
 
 PICKLE_DATASET = False
 PICKLE_DATASET_PATH = "simple_cnn_dataset.pickle"
@@ -74,7 +75,8 @@ print(f"length of dataset: {len(d)}, estimated time to load all (mins): {(end - 
 print("=========")
 
 
-run_id = random_id(10)
+run_id = random_id(40)
+print("Run ID:", run_id)
 model = SimpleCNN(num_modes=NUM_MODES, predictions_per_mode=PREDS_PER_MODE, state_vector_size=sample[1].shape[0])
 device = torch.device("cuda" if torch.cuda.is_available() and not cpu else "cpu")
 is_cuda = device.type == "cuda"
@@ -83,10 +85,31 @@ model.to(device)
 # compile model.forward to make it faster
 # model_forward = torch.jit.trace(model.forward, example_inputs=(sample[0].to(device), sample[1].to(device)))
 
-training_loader = torch.utils.data.DataLoader(d, batch_size=BATCH_SIZE, shuffle=True, pin_memory=is_cuda, num_workers=8, persistent_workers=True, prefetch_factor=5)
+train, val = torch.utils.data.random_split(d, [int(len(d) * 0.8), len(d) - int(len(d) * 0.8)], generator=torch.Generator().manual_seed(42))
+training_loader = torch.utils.data.DataLoader(
+    train,
+    batch_size=BATCH_SIZE,
+    shuffle=True,
+    pin_memory=is_cuda,
+    num_workers=8,
+    persistent_workers=True,
+    prefetch_factor=5
+)
+validation_loader = torch.utils.data.DataLoader(
+    val,
+    batch_size=3 * BATCH_SIZE,
+    shuffle=True,
+    pin_memory=is_cuda,
+    num_workers=8,
+    persistent_workers=True,
+    prefetch_factor=5
+)
+
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
-tb_writer = SummaryWriter()
+tb_writer = SummaryWriter(log_dir="runs/simple_cnn_r" + run_id)
+tb_writer.add_text("run_id", run_id)
+breakpoint()
 
 if PROFILE:
     model.forward = profiler(model.forward, "forward")
@@ -111,7 +134,13 @@ def calculate_metrics(predictions, probabilities, gt):
         "minFDE": minFDE_,
     }
 
-def train_one_epoch(epoch_index, model, optimizer, dataloader, device, tb_writer):
+def _preprocess(data):
+    for i, d_ in enumerate(data):
+        data[i] = d_.cuda(non_blocking=True)
+    data[0] = data[0].squeeze(1)
+    return data
+
+def train_one_epoch(epoch_index, model, optimizer, dataloader, val_dataloader, device, tb_writer):
     model.train()
     running_loss = 0
     running_l1_loss = 0
@@ -123,10 +152,7 @@ def train_one_epoch(epoch_index, model, optimizer, dataloader, device, tb_writer
         # SimpleCNNDataset returns shape (1, C, H, W), dataloader returns (B, 1, C, H, W)
         # squeeze to remove the 1 dimension
 
-        for j, d_ in enumerate(data):
-            data[j] = d_.cuda(non_blocking=True)
-
-        data[0] = data[0].squeeze(1)
+        data = _preprocess(data)
 
         if CHECK_NAN:
             for _, d_ in enumerate(data):
@@ -172,6 +198,32 @@ def train_one_epoch(epoch_index, model, optimizer, dataloader, device, tb_writer
             running_minADE = 0.
             running_minFDE = 0.
 
+        if i % VALIDATION_INTERVAL == VALIDATION_INTERVAL - 1:
+            print("Validating")
+            start = time.time()
+            losses, l1_losses, minADEs, minFDEs = torch.empty(len(val_dataloader)), torch.empty(len(val_dataloader)), torch.empty(len(val_dataloader)), torch.empty(len(val_dataloader))
+            for j, val_data in enumerate(val_dataloader):
+                _preprocess(val_data)
+
+                model.eval()
+                with torch.no_grad():
+                    y_pred = model(val_data[0], val_data[1])
+                loss, l1_loss = loss_function(*y_pred, val_data[2])
+                model.train()
+
+                metrics = calculate_metrics(*y_pred, val_data[2])
+
+                losses[j] = loss.item()
+                l1_losses[j] = l1_loss
+                minADEs[j] = metrics["minADE"]
+                minFDEs[j] = metrics["minFDE"]
+
+            tb_writer.add_scalar('Loss/val', torch.mean(losses), tb_x)
+            tb_writer.add_scalar('Loss/l1_loss_val', torch.mean(l1_losses), tb_x)
+            tb_writer.add_scalar('Metrics/minADE_val', torch.mean(minADEs), tb_x)
+            tb_writer.add_scalar('Metrics/minFDE_val', torch.mean(minFDEs), tb_x)
+            print(f"Validation took {time.time() - start} seconds")
+
 if __name__ == "__main__":
     if MEMORY_PROFILE:
         torch.cuda.memory._record_memory_history()
@@ -180,7 +232,7 @@ if __name__ == "__main__":
             startNsight()
         start = time.time()
         #profiler(train_one_epoch, "big_profile")(x, model, optimizer, training_loader, device, tb_writer)
-        train_one_epoch(x, model, optimizer, training_loader, device, tb_writer)
+        train_one_epoch(x, model, optimizer, training_loader, validation_loader, device, tb_writer)
         end = time.time()
         print(f"Epoch {x} took {end - start} seconds")
 
@@ -194,7 +246,8 @@ if __name__ == "__main__":
             "BATCH_SIZE": BATCH_SIZE,
             "INIT_LEARNING_RATE": LEARNING_RATE,
             "INIT_MOMENTUM": MOMENTUM,
-        }, f"runs/simple_cnn_r{run_id}_e{x}_{get_time_str()}.pt")
+            "SIMPLE_CNN_SOURCE": "train_simple_cnn.py",
+        }, f"runs/simple_cnn_r{run_id}_e{x}.pt")
     if MEMORY_PROFILE:
         torch.cuda.memory._dump_snapshot("memory_profiler_dump.pickle")
     if NSIGHT_PROFILE:

@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from torch import _dynamo as torchdynamo
 
 def construct_base_cnn():
-    base_cnn = torchvision.models.mobilenet_v2(pretrained=False)
+    base_cnn = torchvision.models.mobilenet_v2(pretrained=True)
     base_cnn_raster_size = base_cnn.classifier[1].in_features
     base_cnn.classifier = torch.nn.Identity() # remove the last layer
     return base_cnn, base_cnn_raster_size
