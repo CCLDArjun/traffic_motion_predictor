@@ -31,7 +31,7 @@ PREDS_PER_MODE = 12
 
 EPOCHS = 160 + WARMUP_EPOCHS
 BATCH_SIZE = 16
-LEARNING_RATE = 0.0001
+LEARNING_RATE = 0.001
 MOMENTUM = 0.9
 REPORT_INTERVAL = 15 # batches
 PRINT_INTERVAL = 15 # batches
@@ -42,6 +42,9 @@ PICKLE_DATASET_PATH = "simple_cnn_dataset.pickle"
 
 CHUNK_DATASET = True
 CHUNK_DATASET_PATH = "./chunks/"
+
+START_AT_CHECKPOINT = True
+CHECKPOINT = "./runs/simple_cnn_rVW9hZ6wZcpHqLIen3Tio1r8haPBGTmtcUitSfVfJ_e39.pt"
 
 if CHUNK_DATASET:
     d = ChunkReader(CHUNK_DATASET_PATH)
@@ -75,9 +78,18 @@ print(f"length of dataset: {len(d)}, estimated time to load all (mins): {(end - 
 print("=========")
 
 
-run_id = random_id(40)
+if START_AT_CHECKPOINT:
+    run_id = CHECKPOINT.split("_")[-2][1:]
+else:
+    run_id = random_id(40)
+
 print("Run ID:", run_id)
+
 model = SimpleCNN(num_modes=NUM_MODES, predictions_per_mode=PREDS_PER_MODE, state_vector_size=sample[1].shape[0])
+
+if START_AT_CHECKPOINT:
+    model.load_state_dict(torch.load(CHECKPOINT)["model_state_dict"])
+
 device = torch.device("cuda" if torch.cuda.is_available() and not cpu else "cpu")
 is_cuda = device.type == "cuda"
 model.to(device)
@@ -107,9 +119,11 @@ validation_loader = torch.utils.data.DataLoader(
 
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
+if START_AT_CHECKPOINT:
+    optimizer.load_state_dict(torch.load(CHECKPOINT)["optimizer_state_dict"])
+
 tb_writer = SummaryWriter(log_dir="runs/simple_cnn_r" + run_id)
 tb_writer.add_text("run_id", run_id)
-breakpoint()
 
 if PROFILE:
     model.forward = profiler(model.forward, "forward")
@@ -199,7 +213,6 @@ def train_one_epoch(epoch_index, model, optimizer, dataloader, val_dataloader, d
             running_minFDE = 0.
 
         if i % VALIDATION_INTERVAL == VALIDATION_INTERVAL - 1:
-            print("Validating")
             start = time.time()
             losses, l1_losses, minADEs, minFDEs = torch.empty(len(val_dataloader)), torch.empty(len(val_dataloader)), torch.empty(len(val_dataloader)), torch.empty(len(val_dataloader))
             for j, val_data in enumerate(val_dataloader):
@@ -222,12 +235,20 @@ def train_one_epoch(epoch_index, model, optimizer, dataloader, val_dataloader, d
             tb_writer.add_scalar('Loss/l1_loss_val', torch.mean(l1_losses), tb_x)
             tb_writer.add_scalar('Metrics/minADE_val', torch.mean(minADEs), tb_x)
             tb_writer.add_scalar('Metrics/minFDE_val', torch.mean(minFDEs), tb_x)
-            print(f"Validation took {time.time() - start} seconds")
 
 if __name__ == "__main__":
     if MEMORY_PROFILE:
         torch.cuda.memory._record_memory_history()
-    for x in range(1, EPOCHS + 1):
+
+    # if checkpoint, start at the next epoch
+    if START_AT_CHECKPOINT:
+        start = CHECKPOINT.split("_")[-1].split(".")[0][1:]
+        start = int(start) + 1
+        print("continuing from epoch", start)
+    else:
+        start = 1
+
+    for x in range(start, EPOCHS + 1):
         if NSIGHT_PROFILE and x == WARMUP_EPOCHS + 1:
             startNsight()
         start = time.time()
@@ -246,7 +267,6 @@ if __name__ == "__main__":
             "BATCH_SIZE": BATCH_SIZE,
             "INIT_LEARNING_RATE": LEARNING_RATE,
             "INIT_MOMENTUM": MOMENTUM,
-            "SIMPLE_CNN_SOURCE": "train_simple_cnn.py",
         }, f"runs/simple_cnn_r{run_id}_e{x}.pt")
     if MEMORY_PROFILE:
         torch.cuda.memory._dump_snapshot("memory_profiler_dump.pickle")
