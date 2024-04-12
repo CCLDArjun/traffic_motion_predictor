@@ -8,8 +8,11 @@ import torchvision
 import torch.nn.functional as F
 from ..simple_cnn import SimpleCNN
 
+
 class LSTMPredictor(torch.nn.Module):
-    def __init__(self, traffic_encoder, traffic_encoder_output_len, num_modes, hidden_size=128):
+    def __init__(
+        self, traffic_encoder, traffic_encoder_output_len, num_modes, hidden_size=128
+    ):
         super(LSTMPredictor, self).__init__()
         self.traffic_encoder = traffic_encoder
         self.traffic_encoder_output_len = traffic_encoder_output_len
@@ -29,22 +32,22 @@ class LSTMPredictor(torch.nn.Module):
         batches = raster_image.shape[0]
 
         backbone_encoded = self.traffic_encoder(
-            raster_image,
-            state_vector,
-            latent_output="fc1"
+            raster_image, state_vector, latent_output="fc1"
         )
 
         encoded_traffic = F.relu(self.fc_in(backbone_encoded))
 
         # (num_layers, batch, hidden_size), but (num_layers, hidden_size) for unbatched
         hidden = torch.zeros(
-            (self.lstm.num_layers, encoded_traffic.shape[0], self.lstm.hidden_size)
-        ).squeeze().to(device)
+            self.lstm.num_layers, encoded_traffic.shape[0], self.lstm.hidden_size
+        )
+        hidden = hidden.squeeze()
+        hidden = hidden.to(device)
         cell = torch.zeros_like(hidden).to(device)
 
         encoded_traffic = encoded_traffic.unsqueeze(1).repeat(1, points_to_predict, 1)
 
-        #print(f"{encoded_traffic.shape=} {hidden.shape=} {cell.shape=}")
+        # print(f"{encoded_traffic.shape=} {hidden.shape=} {cell.shape=}")
         lstm_output, (hidden, cell) = self.lstm(encoded_traffic, (hidden, cell))
         fc_output = self.fc_out(lstm_output)
 
@@ -52,17 +55,19 @@ class LSTMPredictor(torch.nn.Module):
         probabilities = self.create_probabilities(fc_output)
 
         return predictions, probabilities
-    
+
     def create_predictions(self, fc_output):
         predictions = fc_output[:, :, :50]
 
         # we want predictions to be (B, 25, 12, 2)
-        # cant just reshape(B, 25, 12, 2) otherwise it messes up the order of the 
+        # cant just reshape(B, 25, 12, 2) otherwise it messes up the order of the
         # predictions as they are from the lstm passes
-        predictions = predictions.transpose(1, 2) # (B, 12, 50) -> (B, 50, 12)
-        predictions = predictions.chunk(25, dim=1) # (B, 50, 12) -> 25 * (B, 2, 12)
-        predictions = torch.stack(predictions, dim=1) # 25 * (B, 12, 2) -> (B, 25, 2, 12)
-        predictions = predictions.transpose(3, 2) # (B, 25, 2, 12) -> (B, 25, 12, 2)
+        predictions = predictions.transpose(1, 2)  # (B, 12, 50) -> (B, 50, 12)
+        predictions = predictions.chunk(25, dim=1)  # (B, 50, 12) -> 25 * (B, 2, 12)
+        predictions = torch.stack(
+            predictions, dim=1
+        )  # 25 * (B, 12, 2) -> (B, 25, 2, 12)
+        predictions = predictions.transpose(3, 2)  # (B, 25, 2, 12) -> (B, 25, 12, 2)
 
         return predictions
 
@@ -74,6 +79,7 @@ class LSTMPredictor(torch.nn.Module):
         probabilities = probabilities[:, -1, :]
         probabilities = F.softmax(probabilities, dim=1)
         return probabilities
+
 
 def test():
     torch.set_printoptions(precision=2)
@@ -87,7 +93,8 @@ def test():
     raster_image = torch.rand(batches, 3, 500, 500)
     state_vector = torch.rand(batches, 12)
 
-    fc_out = torch.randperm(batches * points_per_traj * modes * 3).reshape(batches, points_per_traj, modes * 3)
+    fc_out = torch.randperm(batches * points_per_traj * modes * 3)
+    fc_out = fc_out.reshape(batches, points_per_traj, modes * 3)
 
     predictions = model.create_predictions(fc_out)
 
@@ -114,4 +121,3 @@ def test():
             for point_i, point in enumerate(mode):
                 for p in point:
                     assert p in fc_out[batch_i, point_i, :]
-
