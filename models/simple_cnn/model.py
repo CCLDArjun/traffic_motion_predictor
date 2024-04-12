@@ -57,7 +57,6 @@ def _torch_zeros_factory(tensor):
         return tensor.new_zeros(*args, **kwargs)
     return F
 
-@torchdynamo.optimize()
 def loss_function(predictions, probabilities, target_prediction, prediction_loss_weight=torch.tensor(1.0)):
     torch_empty = _torch_empty_factory(predictions)
     torch_zeros = _torch_zeros_factory(predictions)

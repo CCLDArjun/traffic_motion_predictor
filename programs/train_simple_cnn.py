@@ -4,6 +4,8 @@ sys.path.append("../")
 import time
 import pickle
 import os
+from unittest import mock
+import math
 
 import torch
 from torch import _dynamo as torchdynamo
@@ -16,6 +18,9 @@ from utils import random_id, get_time_str, nsight_profiler, profiler, startNsigh
 from utils.metrics import minADE, minFDE
 
 torch.autograd.set_detect_anomaly(False)
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
+#torch._dynamo.config.suppress_errors = True
 #torch.cuda.set_sync_debug_mode(1)
 
 cpu = False
@@ -29,13 +34,13 @@ WARMUP_EPOCHS = 1
 NUM_MODES = 25
 PREDS_PER_MODE = 12
 
-EPOCHS = 160 + WARMUP_EPOCHS
-BATCH_SIZE = 16
-LEARNING_RATE = 0.001
+EPOCHS = 92 + WARMUP_EPOCHS
+BATCH_SIZE = 28
+print("BATCH SIZE:", BATCH_SIZE)
+LEARNING_RATE = 0.0001
 MOMENTUM = 0.9
 REPORT_INTERVAL = 15 # batches
 PRINT_INTERVAL = 15 # batches
-VALIDATION_INTERVAL = REPORT_INTERVAL * 50 # batches
 
 PICKLE_DATASET = False
 PICKLE_DATASET_PATH = "simple_cnn_dataset.pickle"
@@ -43,8 +48,9 @@ PICKLE_DATASET_PATH = "simple_cnn_dataset.pickle"
 CHUNK_DATASET = True
 CHUNK_DATASET_PATH = "./chunks/"
 
-START_AT_CHECKPOINT = True
+START_AT_CHECKPOINT = False
 CHECKPOINT = "./runs/simple_cnn_rVW9hZ6wZcpHqLIen3Tio1r8haPBGTmtcUitSfVfJ_e39.pt"
+WRITE_TENSORBOARD = True
 
 if CHUNK_DATASET:
     d = ChunkReader(CHUNK_DATASET_PATH)
@@ -122,8 +128,12 @@ optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 if START_AT_CHECKPOINT:
     optimizer.load_state_dict(torch.load(CHECKPOINT)["optimizer_state_dict"])
 
-tb_writer = SummaryWriter(log_dir="runs/simple_cnn_r" + run_id)
-tb_writer.add_text("run_id", run_id)
+if WRITE_TENSORBOARD:
+    tb_writer = SummaryWriter(log_dir="runs/simple_cnn_r" + run_id)
+    tb_writer.add_text("run_id", run_id)
+else:
+    tb_writer = mock.Mock()
+    tb_writer.add_scalar = lambda *args, **kwargs: None
 
 if PROFILE:
     model.forward = profiler(model.forward, "forward")
@@ -134,7 +144,6 @@ if NSIGHT_PROFILE:
     loss_function = nsight_profiler(loss_function, "loss")
     optimizer.step = nsight_profiler(optimizer.step, "optstep")
 
-torchdynamo.optimize()
 def calculate_metrics(predictions, probabilities, gt):
     # denormalize predictions and ground truth
     predictions = denormalize_xy(predictions)
@@ -176,8 +185,9 @@ def train_one_epoch(epoch_index, model, optimizer, dataloader, val_dataloader, d
 
         optimizer.zero_grad()
 
-        y_pred = model(data[0], data[1])
-        loss, l1_loss = loss_function(*y_pred, data[2])
+        with torch.autocast(device_type="cuda" if torch.cuda.is_available() else "cpu"):
+            y_pred = model(data[0], data[1])
+            loss, l1_loss = loss_function(*y_pred, data[2])
 
         if PROFILE:
             profiler(loss.backward, "backward")()
@@ -195,13 +205,16 @@ def train_one_epoch(epoch_index, model, optimizer, dataloader, val_dataloader, d
 
         optimizer.step()
 
+        # this was originally done with BATCH_SIZE = 16 so the tb_x is calculated wrong for a different BATCH_SIZE
+        # so we should calculate it as if BATCH_SIZE = 16
+        tb_x = math.ceil(epoch_index * len(dataloader) * BATCH_SIZE / 16) + i + 1 
+
         if i % REPORT_INTERVAL == REPORT_INTERVAL - 1:
             running_loss /= REPORT_INTERVAL - 1 # loss per batch
             running_l1_loss /= REPORT_INTERVAL - 1
             running_minADE /= REPORT_INTERVAL - 1
             running_minFDE /= REPORT_INTERVAL - 1
 
-            tb_x = epoch_index * len(dataloader) + i + 1
             tb_writer.add_scalar('Loss/train', running_loss, tb_x)
             tb_writer.add_scalar('Loss/l1_loss', running_l1_loss, tb_x)
             tb_writer.add_scalar('Metrics/minADE', running_minADE, tb_x)
@@ -212,7 +225,7 @@ def train_one_epoch(epoch_index, model, optimizer, dataloader, val_dataloader, d
             running_minADE = 0.
             running_minFDE = 0.
 
-        if i % VALIDATION_INTERVAL == VALIDATION_INTERVAL - 1:
+        if i == len(dataloader) - 1: # last batch
             start = time.time()
             losses, l1_losses, minADEs, minFDEs = torch.empty(len(val_dataloader)), torch.empty(len(val_dataloader)), torch.empty(len(val_dataloader)), torch.empty(len(val_dataloader))
             for j, val_data in enumerate(val_dataloader):
@@ -258,16 +271,17 @@ if __name__ == "__main__":
         print(f"Epoch {x} took {end - start} seconds")
 
 
-        torch.save({
-            'epoch': x,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            "NUM_MODES": NUM_MODES,
-            "PREDS_PER_MODE": PREDS_PER_MODE,
-            "BATCH_SIZE": BATCH_SIZE,
-            "INIT_LEARNING_RATE": LEARNING_RATE,
-            "INIT_MOMENTUM": MOMENTUM,
-        }, f"runs/simple_cnn_r{run_id}_e{x}.pt")
+        if WRITE_TENSORBOARD:
+            torch.save({
+                'epoch': x,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                "NUM_MODES": NUM_MODES,
+                "PREDS_PER_MODE": PREDS_PER_MODE,
+                "BATCH_SIZE": BATCH_SIZE,
+                "INIT_LEARNING_RATE": LEARNING_RATE,
+                "INIT_MOMENTUM": MOMENTUM,
+            }, f"runs/simple_cnn_r{run_id}_e{x}.pt")
     if MEMORY_PROFILE:
         torch.cuda.memory._dump_snapshot("memory_profiler_dump.pickle")
     if NSIGHT_PROFILE:

@@ -6,16 +6,17 @@ Given 1 second of traffic and an agent's starting position, predict its trajecto
 ***
 ### Findings
 
-| name         | Pretrained CNN | Backbone CNN | Type      | Learning Rate | Momentum | minFDE_val | minADE_val | Epochs |
-|--------------|----------------|--------------|-----------|---------------|----------|------------|------------|--------|
-| simple_cnn_1 | Yes            | mobile-net   | SimpleCNN | 0.0001        | 0.9      | 228        | 1622       | 160    |
-| simple_cnn_1 | Yes            | mobile-net   | SimpleCNN | 0.0001        | 0.9      | 266        | 2158       | 92     |
-| simple_cnn_2 | Yes            | mobile-net   | SimpleCNN | 0.001         | 0.9      | 399        | 3032       | 92     |
-|              |                |              |           |               |          |            |            |        |
+| name         | Pretrained CNN | Backbone CNN | Type      | Learning Rate | Momentum | minFDE_val | minADE_val | Epochs | Batch Size | Mixed Precision |
+|--------------|----------------|--------------|-----------|---------------|----------|------------|------------|--------|------------|-----------------|
+| simple_cnn_1 | Yes            | mobile-net   | SimpleCNN | 0.0001        | 0.9      | 228        | 1622       | 160    | 16         | N               |
+| simple_cnn_1 | Yes            | mobile-net   | SimpleCNN | 0.0001        | 0.9      | 266        | 2158       | 92     | 16         | N               |
+| simple_cnn_2 | Yes            | mobile-net   | SimpleCNN | 0.001         | 0.9      | 399        | 3032       | 92     | 16         | N               |
+| simple_cnn_3 | Yes            | mobile-net   | SimpleCNN | 0.0001        | 0.9      |            |            | 92     | 28         | Y               |
 
 name to id:
 - simple_cnn_1: simple_cnn_rofjQV2NUK1trG6vmlqOSEDd7bHr9OxUHzAVEjV7d
 - simple_cnn_2: simple_cnn_rVW9hZ6wZcpHqLIen3Tio1r8haPBGTmtcUitSfVfJ
+- simple_cnn_3: simple_cnn_rSFaNYXVMP9P8hPScrKBmgGDA0oZSgELrCYk6Iqod
 
 ### Setup
 
