@@ -55,9 +55,9 @@ class SimpleCNN(torch.nn.Module):
             x, [self.num_modes, x[0].shape[0] - self.num_modes], dim=1
         )
 
-        predictions = torch.reshape(
+        predictions = F.relu(torch.reshape(
             predictions, (-1, self.num_modes, self.predictions_per_mode, 2)
-        )
+        ))
         probabilities = F.softmax(probabilities, dim=1)
 
         return predictions, probabilities

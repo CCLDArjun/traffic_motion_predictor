@@ -71,6 +71,7 @@ def denormalize(value, min, max):
     return value * (max - min) + min
 
 denormalize_xy = functools.partial(denormalize, min=MIN_XY, max=MAX_XY)
+normalize_xy = functools.partial(normalize, min=MIN_XY, max=MAX_XY)
 
 class SimpleCNNDataset(NuScenesDataset):
     def __init__(self, *args, **kwargs):
@@ -88,6 +89,10 @@ class SimpleCNNDataset(NuScenesDataset):
         return value
     def normalize(self, value, min, max):
         return normalize(value, min, max)
+
+    def get_tokens(self, idx):
+        instance_token, sample_token = self.instances[idx].split("_")
+        return instance_token, sample_token
 
     def __getitem__(self, idx):
         data = super().__getitem__(idx)
